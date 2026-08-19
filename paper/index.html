@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Refresh Opportunity Scoring | FlyRank Research</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f7f5f2;
+    color: #29231f;
+    line-height: 1.7;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    padding: 40px 24px;
+}
+
+header {
+    background: #2c1f18;
+    color: white;
+    padding: 70px 24px;
+}
+
+header h1 {
+    font-size: 46px;
+    line-height: 1.15;
+    margin-bottom: 20px;
+}
+
+header p {
+    font-size: 19px;
+    max-width: 800px;
+}
+
+section {
+    background: white;
+    margin: 28px 0;
+    padding: 35px;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+}
+
+h2 {
+    color: #3a5a40;
+    margin-top: 0;
+}
+
+h3 {
+    color: #2c1f18;
+}
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 25px 0;
+}
+
+.kpi {
+    background: #f5f0e6;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.kpi strong {
+    display: block;
+    font-size: 28px;
+    color: #3a5a40;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+th {
+    background: #f5f0e6;
+}
+
+.note {
+    background: #fff4e8;
+    border-left: 5px solid #d97757;
+    padding: 18px;
+    margin: 20px 0;
+}
+
+footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+a {
+    color: #3a5a40;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<div class="container">
+    <p>FLYRANK SEARCH INTELLIGENCE · CAPSTONE RESEARCH</p>
+
+    <h1>Refresh Opportunity Scoring</h1>
+
+    <p>
+        A decision-support model for identifying content items that may
+        deserve human review for a potential refresh.
+    </p>
+
+    <p>
+        Built on the FlyRank ML Internship dataset.
+    </p>
+</div>
+</header>
+
+<main class="container">
+
+<section>
+<h2>Abstract</h2>
+
+<p>
+This research asks whether search-performance signals can be used to rank
+content items that may deserve human review for a potential content refresh.
+The analysis uses the pseudonymized FlyRank warehouse and creates time-aware
+features from historical search performance before a defined feature cutoff.
+A logistic regression model is compared with a simple baseline using a
+held-out client-based evaluation split. The model achieved 0.623 accuracy and
+0.598 ROC-AUC, compared with 0.585 baseline accuracy, while its F1 score
+(0.288) was slightly below the baseline F1 score (0.292). The final output is
+therefore best treated as an exploratory ranking and decision-support system,
+not as proof that refreshing a page will cause better search performance.
+</p>
+</section>
+
+<section>
+<h2>1. Introduction / Problem Statement</h2>
+
+<p>
+Content teams often have many pages competing for limited editorial attention.
+The practical question is not simply which pages perform well or poorly, but
+which pages show measurable signals that make them worth reviewing.
+</p>
+
+<p>
+This project focuses on the <strong>Refresh / Content Opportunity Scoring</strong>
+lane. The decision supported by the analysis is:
+</p>
+
+<div class="note">
+<strong>Which content items should a human editor review first for a possible
+refresh?</strong>
+</div>
+
+<p>
+The analysis produces a ranked opportunity list with reason codes so that
+the ranking can be interpreted rather than treated as a black-box automatic
+instruction.
+</p>
+</section>
+
+<section>
+<h2>2. Data</h2>
+
+<p>
+The analysis uses the full pseudonymized FlyRank internship warehouse release
+hosted on Hugging Face. DuckDB reads the hosted Parquet data without loading
+the complete warehouse into memory.
+</p>
+
+<h3>Tables used</h3>
+
+<ul>
+<li><strong>dim_clients</strong> — client-level metadata and data availability.</li>
+<li><strong>dim_content</strong> — pseudonymized content-item information.</li>
+<li><strong>fact_daily</strong> — daily content search-performance data.</li>
+<li><strong>fact_query_90d</strong> — query-level aggregated signals.</li>
+</ul>
+
+<h3>Observed warehouse scale</h3>
+
+<div class="kpis">
+<div class="kpi">
+<strong>104</strong>
+Client dimension rows
+</div>
+
+<div class="kpi">
+<strong>519,606</strong>
+Content dimension rows
+</div>
+
+<div class="kpi">
+<strong>78.8M</strong>
+Daily performance rows
+</div>
+
+<div class="kpi">
+<strong>2.4M</strong>
+Query-level rows
+</div>
+</div>
+
+<p>
+The daily warehouse covered approximately January 2025 through June 2026.
+The modeling design used a feature cutoff of
+<strong>2026-04-30</strong> and measured the future outcome through
+<strong>2026-05-30</strong>.
+</p>
+
+<p>
+Only information available before the feature cutoff was used to construct
+predictive features. Client names, domains, URLs, private queries and raw
+exports were excluded from the public research artifact.
+</p>
+</section>
+
+<section>
+<h2>3. Methodology</h2>
+
+<h3>Feature design</h3>
+
+<p>
+Features summarized recent and previous 30-day search performance. These
+included impressions, clicks, average position, percentage changes in
+impressions and clicks, and derived click-through-rate signals.
+</p>
+
+<p>
+The final feature table contained:
+<strong>100,849 content-item/client observations</strong>.
+</p>
+
+<h3>Outcome definition</h3>
+
+<p>
+A candidate <strong>refresh_opportunity</strong> label was defined from the
+relationship between recent performance and the subsequent 30-day outcome.
+The candidate label contained 43.6% positive observations.
+</p>
+
+<h3>Validation design</h3>
+
+<p>
+The modeling data was divided using a client-based held-out evaluation design.
+There were 92,501 training observations and 8,348 test observations, covering
+30 training clients and 14 test clients.
+</p>
+
+<h3>Model</h3>
+
+<p>
+A logistic regression classifier with standardized numerical features was
+used as a simple, interpretable predictive model.
+</p>
+
+<h3>Baseline</h3>
+
+<p>
+A simple baseline prediction was evaluated on the same test split so that the
+model's performance could be judged against a non-model benchmark.
+</p>
+
+<div class="note">
+<strong>Leakage check:</strong>
+Predictive features were constructed from information available before the
+feature cutoff, while the outcome was measured in the subsequent window.
+</div>
+</section>
+
+<section>
+<h2>4. Results</h2>
+
+<div class="kpis">
+<div class="kpi">
+<strong>0.623</strong>
+Model accuracy
+</div>
+
+<div class="kpi">
+<strong>0.585</strong>
+Baseline accuracy
+</div>
+
+<div class="kpi">
+<strong>0.598</strong>
+Model ROC-AUC
+</div>
+
+<div class="kpi">
+<strong>0.288</strong>
+Model F1
+</div>
+</div>
+
+<table>
+<tr>
+<th>Metric</th>
+<th>Baseline</th>
+<th>Logistic Regression</th>
+</tr>
+
+<tr>
+<td>Accuracy</td>
+<td>0.585</td>
+<td>0.623</td>
+</tr>
+
+<tr>
+<td>Precision</td>
+<td>0.409</td>
+<td>0.500</td>
+</tr>
+
+<tr>
+<td>Recall</td>
+<td>0.227</td>
+<td>0.202</td>
+</tr>
+
+<tr>
+<td>F1</td>
+<td>0.292</td>
+<td>0.288</td>
+</tr>
+
+<tr>
+<td>ROC-AUC</td>
+<td>—</td>
+<td>0.598</td>
+</tr>
+</table>
+
+<p>
+The model improved accuracy and precision relative to the baseline, but its
+F1 score was slightly lower. This indicates that the model showed some useful
+signal but did not clearly outperform the baseline across every classification
+metric.
+</p>
+
+<h3>Most influential model features</h3>
+
+<table>
+<tr>
+<th>Feature</th>
+<th>Coefficient</th>
+</tr>
+
+<tr>
+<td>impressions_previous30</td>
+<td>0.304</td>
+</tr>
+
+<tr>
+<td>impression_change_pct</td>
+<td>0.204</td>
+</tr>
+
+<tr>
+<td>position_change</td>
+<td>0.092</td>
+</tr>
+
+<tr>
+<td>clicks_recent30</td>
+<td>0.065</td>
+</tr>
+
+<tr>
+<td>recent_ctr</td>
+<td>-0.229</td>
+</tr>
+
+<tr>
+<td>clicks_previous30</td>
+<td>-0.275</td>
+</tr>
+</table>
+</section>
+
+<section>
+<h2>5. Limitations & Honest Framing</h2>
+
+<ul>
+<li>
+This analysis identifies patterns and ranks content items for decision
+support; it does not prove that refreshing a page will cause its search
+performance to improve.
+</li>
+
+<li>
+The results describe associations observed in the FlyRank internship dataset
+and should not be interpreted as evidence about Google's ranking algorithm or
+as causal evidence of refresh impact.
+</li>
+
+<li>
+The warehouse is pseudonymized, so the analysis cannot provide public client
+names, domains, URLs, or private search queries.
+</li>
+
+<li>
+The refresh opportunity score depends on the chosen features, target
+definition, time windows, and validation design.
+</li>
+
+<li>
+Pages ranked highly should therefore be reviewed by a human editor rather
+than automatically refreshed.
+</li>
+
+<li>
+The model may perform differently on future data or on clients and time
+periods that differ from the evaluation sample.
+</li>
+</ul>
+</section>
+
+<section>
+<h2>6. Ranked Recommendations</h2>
+
+<p>
+The following examples come from the final opportunity-ranking output.
+Content identifiers are pseudonymized. The ranking is intended to prioritize
+human review.
+</p>
+
+<table>
+<tr>
+<th>Rank</th>
+<th>Content ID</th>
+<th>Opportunity Score</th>
+<th>Impression Change</th>
+<th>Position Change</th>
+<th>Reason</th>
+</tr>
+
+<tr>
+<td>1</td>
+<td>content_3f5ef78751357313</td>
+<td>0.999998</td>
+<td>+178.7%</td>
+<td>-0.52</td>
+<td>High recent visibility</td>
+</tr>
+
+<tr>
+<td>2</td>
+<td>content_d5e58406c1d05ec8</td>
+<td>0.999996</td>
+<td>+229.6%</td>
+<td>+0.59</td>
+<td>Position deteriorated; high visibility</td>
+</tr>
+
+<tr>
+<td>3</td>
+<td>content_84e12d54a2e96dfe</td>
+<td>0.999817</td>
+<td>+116.4%</td>
+<td>+0.29</td>
+<td>Position deteriorated; high visibility</td>
+</tr>
+
+<tr>
+<td>4</td>
+<td>content_4b5e4a6b1f8666b5</td>
+<td>0.999787</td>
+<td>+114.1%</td>
+<td>-2.20</td>
+<td>High recent visibility</td>
+</tr>
+
+<tr>
+<td>5</td>
+<td>content_41492ed3abf47c6f</td>
+<td>0.999770</td>
+<td>+111.4%</td>
+<td>+1.26</td>
+<td>Position deteriorated; high visibility</td>
+</tr>
+
+<tr>
+<td>6</td>
+<td>content_44f34c0a90047651</td>
+<td>0.999694</td>
+<td>-76.3%</td>
+<td>+3.41</td>
+<td>Strong visibility decline; position deteriorated</td>
+</tr>
+</table>
+
+<div class="note">
+<strong>Action playbook:</strong> These rankings identify items for
+<strong>human review</strong>. A reviewer should investigate the page,
+content freshness, search intent alignment and other contextual evidence
+before deciding whether any refresh is appropriate.
+</div>
+</section>
+
+<section>
+<h2>7. Reproducibility</h2>
+
+<p>
+The analysis was developed in a reproducible notebook using DuckDB,
+pandas and scikit-learn. The notebook contains the data preparation,
+feature engineering, label construction, baseline comparison, model
+training, evaluation and ranked recommendation workflow.
+</p>
+
+<p>
+The complete project repository is available here:
+</p>
+
+<p>
+<a href="https://github.com/faiqakashif82-netizen/FlyRank-MachineLearning-Internship"
+target="_blank">
+GitHub Repository — FlyRank Machine Learning Internship
+</a>
+</p>
+
+<p>
+The capstone notebook is stored under:
+</p>
+
+<pre>work/notebooks/</pre>
+</section>
+
+<section>
+<h2>8. Acknowledgments & Data Credit</h2>
+
+<p>
+Built on the FlyRank ML Internship dataset.
+</p>
+
+<p>
+<a href="https://flyrank.ai" target="_blank">
+FlyRank
+</a>
+</p>
+
+<p>
+This research was completed as part of the FlyRank Machine Learning
+Internship capstone.
+</p>
+</section>
+
+</main>
+
+<footer>
+<p>
+FlyRank Search Intelligence Capstone · Refresh Opportunity Scoring
+</p>
+</footer>
+
+</body>
+</html>
